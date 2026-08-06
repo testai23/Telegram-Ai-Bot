@@ -1,3 +1,6 @@
+import logging
+import os
+
 import aiosqlite
 
 from config import (
@@ -44,6 +47,11 @@ async def _connect():
 
 
 async def init_db():
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+    except OSError:
+        logging.warning("Could not create %s", db_dir)
     db = await _connect()
     try:
         await db.executescript(_SCHEMA)
