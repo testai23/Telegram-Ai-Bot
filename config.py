@@ -24,3 +24,7 @@ DEFAULT_DAILY_CHAT_LIMIT = int(os.getenv("DAILY_CHAT_LIMIT", "20"))
 DEFAULT_DAILY_IMAGE_LIMIT = int(os.getenv("DAILY_IMAGE_LIMIT", "3"))
 
 DB_PATH = os.getenv("DB_PATH", "bot.db")
+
+# بکاپ خودکار روزانه برای ادمین‌ها (ساعت بر اساس تایم سرور)
+AUTO_BACKUP = os.getenv("AUTO_BACKUP", "true").lower() in ("1", "true", "yes")
+BACKUP_HOUR = int(os.getenv("BACKUP_HOUR", "3"))

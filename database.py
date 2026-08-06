@@ -57,6 +57,19 @@ async def init_db():
         await db.close()
 
 
+async def create_backup(backup_path: str):
+    """اسنپ‌شات سازگار از دیتابیس با VACUUM INTO می‌گیرد."""
+    db = await aiosqlite.connect(DB_PATH, isolation_level=None)  # VACUUM نباید داخل تراکنش باشد
+    try:
+        await db.execute("VACUUM INTO ?", (backup_path,))
+    finally:
+        await db.close()
+
+
+def is_valid_backup(data: bytes) -> bool:
+    return data.startswith(b"SQLite format 3")
+
+
 async def add_user(user_id: int, username: str | None, full_name: str, referrer_id: int | None):
     db = await _connect()
     try:

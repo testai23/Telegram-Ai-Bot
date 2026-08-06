@@ -1,11 +1,13 @@
+import os
+from datetime import datetime
 from html import escape
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import Message
+from aiogram.types import FSInputFile, Message
 
 import database as db
-from config import ADMIN_IDS, BOT_NAME, CHANNEL_ID
+from config import ADMIN_IDS, BOT_NAME, CHANNEL_ID, DB_PATH
 
 
 async def membership_ok(bot: Bot, user_id: int) -> bool:
@@ -62,3 +64,30 @@ async def answer_long(message: Message, text: str, limit: int = 4000):
         text = text[cut:].lstrip("\n")
     if text:
         await message.answer(text)
+
+
+async def send_backup(bot: Bot, chat_id: int, auto: bool = False):
+    """بکاپ دیتابیس را می‌سازد و به‌صورت فایل می‌فرستد."""
+    backup_path = DB_PATH + ".backup_tmp"
+    try:
+        await db.create_backup(backup_path)
+        s = await db.stats()
+        stamp = datetime.now().strftime("%Y%m%d_%H%M")
+        title = "🤖 بکاپ خودکار روزانه" if auto else "📥 بکاپ دیتابیس آماده شد"
+        hint = (
+            "این فایل رو نگه دار؛ برای انتقال به اکانت جدید از «📤 ریستور بکاپ» استفاده کن."
+            if not auto
+            else "برای ریستور: پنل مدیریت ← «📤 ریستور بکاپ» ← ارسال همین فایل."
+        )
+        await bot.send_document(
+            chat_id,
+            FSInputFile(backup_path, filename=f"netora_backup_{stamp}.db"),
+            caption=(
+                f"<b>{title}</b>\n\n"
+                f"👤 کاربران: <b>{s['total']}</b> | 🔓 فعال‌شده: <b>{s['unlocked']}</b>\n"
+                f"💾 {hint}"
+            ),
+        )
+    finally:
+        if os.path.exists(backup_path):
+            os.remove(backup_path)

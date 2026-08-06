@@ -55,7 +55,9 @@ def admin_kb() -> InlineKeyboardMarkup:
     kb.button(text="⚙️ تنظیمات", callback_data="admin:settings")
     kb.button(text="🚫 بن کاربر", callback_data="admin:ban")
     kb.button(text="✅ رفع بن", callback_data="admin:unban")
-    kb.adjust(2, 2, 2, 1)
+    kb.button(text="📥 بکاپ دیتابیس", callback_data="admin:backup")
+    kb.button(text="📤 ریستور بکاپ", callback_data="admin:restore")
+    kb.adjust(2, 2, 2, 1, 2)
     return kb.as_markup()
 
 

@@ -1,15 +1,16 @@
 import asyncio
 from html import escape
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import BaseFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 import database as db
-from config import ADMIN_IDS, BOT_NAME
+from config import ADMIN_IDS, BOT_NAME, DB_PATH
 from keyboards import admin_kb, admin_settings_kb
+from utils import send_backup
 
 router = Router()
 
@@ -31,6 +32,7 @@ class AdminForm(StatesGroup):
     ban = State()
     unban = State()
     userinfo = State()
+    restore = State()
 
 
 async def show_panel(message: Message):
@@ -254,6 +256,60 @@ async def cb_unban(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminForm.unban)
     await callback.message.answer("✅ آیدی عددی کاربری که می‌خوای رفع بن بشه رو بفرست:")
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin:backup")
+async def cb_backup(callback: CallbackQuery):
+    await callback.answer("⏳ در حال آماده‌سازی بکاپ...")
+    try:
+        await send_backup(callback.bot, callback.message.chat.id)
+    except Exception as e:
+        await callback.message.answer(f"⚠️ بکاپ گرفتن با خطا مواجه شد:\n<code>{escape(str(e))}</code>")
+
+
+@router.callback_query(F.data == "admin:restore")
+async def cb_restore(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminForm.restore)
+    await callback.message.answer(
+        "📤 <b>ریستور بکاپ</b>\n\n"
+        "فایل بکاپ (<code>.db</code>) که قبلاً از ربات گرفتی رو همین‌جا بفرست.\n\n"
+        "⚠️ <b>توجه:</b> دیتابیس فعلی کاملاً با فایل بکاپ جایگزین می‌شه!"
+    )
+    await callback.answer()
+
+
+@router.message(AdminForm.restore, F.document)
+async def do_restore(message: Message, state: FSMContext, bot: Bot):
+    doc = message.document
+    if not doc.file_name or not doc.file_name.endswith(".db"):
+        await message.answer("❌ فایل باید پسوند <code>.db</code> داشته باشه. دوباره بفرست:")
+        return
+
+    await message.answer("⏳ در حال دانلود و بررسی فایل...")
+    try:
+        file = await bot.get_file(doc.file_id)
+        buffer = await bot.download_file(file.file_path)
+        content = buffer.read()
+    except Exception:
+        await message.answer("⚠️ دانلود فایل با خطا مواجه شد. دوباره تلاش کن.")
+        return
+
+    if not db.is_valid_backup(content):
+        await message.answer("❌ این فایل یک دیتابیس معتبر نیست. فایل درست رو بفرست:")
+        return
+
+    await state.clear()
+    with open(DB_PATH, "wb") as f:
+        f.write(content)
+    await db.init_db()  # اطمینان از سالم بودن ساختار
+
+    s = await db.stats()
+    await message.answer(
+        "✅ <b>بکاپ با موفقیت ریستور شد!</b>\n\n"
+        f"👤 کاربران: <b>{s['total']}</b> | 🔓 فعال‌شده: <b>{s['unlocked']}</b>\n"
+        "ربات حالا با دیتای قبلی کار می‌کنه 🎉",
+        reply_markup=admin_kb(),
+    )
 
 
 @router.message(AdminForm.unban)
