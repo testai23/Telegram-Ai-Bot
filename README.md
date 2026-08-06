@@ -68,7 +68,7 @@ python bot.py
 |---|---|---|
 | `BOT_TOKEN` | — | توکن ربات (الزامی) |
 | `GEMINI_API_KEY` | — | کلید Gemini (الزامی) |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | مدل Gemini |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | مدل Gemini |
 | `CHANNEL_ID` | — | چنل عضویت اجباری (الزامی) |
 | `CHANNEL_LINK` | از روی `CHANNEL_ID` | لینک چنل |
 | `ADMIN_IDS` | — | آیدی ادمین‌ها، با کاما جدا کن |

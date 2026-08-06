@@ -8,7 +8,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 BOT_NAME = os.getenv("BOT_NAME", "Netora AI")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # چنلی که کاربر باید عضو آن باشد؛ مثل @mychannel یا آیدی عددی -100...
 CHANNEL_ID = os.environ["CHANNEL_ID"]

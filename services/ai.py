@@ -8,10 +8,65 @@ from config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
-GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-)
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+_active_model: str | None = None
+
+
+def _endpoint(model: str) -> str:
+    return f"{GEMINI_API_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+
+
+def _model_score(name: str) -> int:
+    n = name.lower()
+    if any(bad in n for bad in ("image", "tts", "embed", "aqa", "robotics")):
+        return -1
+    score = 0
+    if "flash" in n:
+        score += 10
+    if "lite" in n:
+        score += 5
+    if "pro" in n:
+        score += 2
+    return score
+
+
+async def _detect_model(session: aiohttp.ClientSession) -> str | None:
+    """بهترین مدل فعال را از خود API می‌پرسد تا با منقضی شدن مدل‌ها ربات نخوابد."""
+    global _active_model
+    try:
+        async with session.get(
+            f"{GEMINI_API_BASE}?key={GEMINI_API_KEY}&pageSize=200",
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            data = await resp.json()
+        best, best_score = None, 0
+        for m in data.get("models", []):
+            if "generateContent" not in m.get("supportedGenerationMethods", []):
+                continue
+            name = m["name"].split("/")[-1]
+            score = _model_score(name)
+            if score > best_score:
+                best, best_score = name, score
+        if best:
+            _active_model = best
+            logger.info("Gemini auto-selected model: %s", best)
+        return best
+    except Exception:
+        logger.exception("Gemini model detection failed")
+        return None
+
+
+async def _call_gemini(session: aiohttp.ClientSession, model: str, payload: dict):
+    async with session.post(
+        _endpoint(model), json=payload, timeout=aiohttp.ClientTimeout(total=60)
+    ) as resp:
+        body = await resp.text()
+        try:
+            data = await resp.json()
+        except Exception:
+            data = None
+        return resp.status, data, body
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant inside a Telegram bot. "
@@ -40,13 +95,19 @@ async def gemini_chat(user_id: int, text: str) -> str:
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(GEMINI_URL, json=payload, timeout=aiohttp.ClientTimeout(total=60)) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    logger.error("Gemini HTTP %s: %s", resp.status, body[:500])
-                    history.pop()
-                    return "⚠️ خطایی در ارتباط با هوش مصنوعی رخ داد. لطفاً کمی بعد دوباره تلاش کن."
-                data = await resp.json()
+            model = _active_model or GEMINI_MODEL
+            status, data, body = await _call_gemini(session, model, payload)
+
+            if status == 404:  # مدل منقضی شده؛ یک مدل فعال را خودکار پیدا کن
+                logger.warning("Gemini model %s unavailable, auto-detecting...", model)
+                new_model = await _detect_model(session)
+                if new_model and new_model != model:
+                    status, data, body = await _call_gemini(session, new_model, payload)
+
+            if status != 200:
+                logger.error("Gemini HTTP %s: %s", status, body[:500])
+                history.pop()
+                return "⚠️ خطایی در ارتباط با هوش مصنوعی رخ داد. لطفاً کمی بعد دوباره تلاش کن."
         reply = data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
         logger.exception("Gemini request failed")
