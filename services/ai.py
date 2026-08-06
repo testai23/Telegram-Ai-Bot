@@ -1,9 +1,12 @@
+import logging
 import random
 from urllib.parse import quote
 
 import aiohttp
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
+
+logger = logging.getLogger(__name__)
 
 GEMINI_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -38,9 +41,15 @@ async def gemini_chat(user_id: int, text: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(GEMINI_URL, json=payload, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logger.error("Gemini HTTP %s: %s", resp.status, body[:500])
+                    history.pop()
+                    return "⚠️ خطایی در ارتباط با هوش مصنوعی رخ داد. لطفاً کمی بعد دوباره تلاش کن."
                 data = await resp.json()
         reply = data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
+        logger.exception("Gemini request failed")
         history.pop()
         return "⚠️ خطایی در ارتباط با هوش مصنوعی رخ داد. لطفاً کمی بعد دوباره تلاش کن."
 
